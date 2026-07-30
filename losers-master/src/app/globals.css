@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+html,
+body {
+  height: 100%;
+  background-color: #f5f7fa;
+}
+
+/* Leaflet needs an explicit height on its container */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  border-radius: 1.25rem;
+  font-family: var(--font-body);
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 0.75rem;
+}
+
+/* Custom marker pulse for "you are here" */
+.pulse-dot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #2200ff;
+  box-shadow: 0 0 0 rgba(22, 169, 248, 0.6);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(51, 196, 107, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(51, 196, 107, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(51, 196, 107, 0);
+  }
+}
+
+/* Hide scrollbars on the horizontal filter chips row */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

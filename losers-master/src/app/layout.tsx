@@ -1,0 +1,29 @@
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+import { Toaster } from "react-hot-toast";
+
+export const metadata: Metadata = {
+  title: "ParkSathi",
+  description: "Find and share parking, instantly.",
+  icons: { icon: "/favicon.ico" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#16213E",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <Toaster position="top-center" />
+      <body className="font-body text-night-900 antialiased">{children}</body>
+    </html>
+  );
+}
