@@ -4,14 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import type { Profile } from "@/types";
-import {
-  ShieldCheck,
-  ShieldAlert,
-  ShieldQuestion,
-  Clock,
-  Loader2,
-  FileImage,
-} from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldQuestion, Clock, Loader2, FileImage } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function VerificationPage() {
@@ -96,8 +89,7 @@ export default function VerificationPage() {
         legalAgeLimit.setFullYear(legalAgeLimit.getFullYear() - 18);
 
         if (birthDate > legalAgeLimit) {
-          const msg =
-            "You must be at least 18 years old to verify your identity.";
+          const msg = "You must be at least 18 years old to verify your identity.";
           setError(msg);
           toast.error(msg);
           setLoading(false);
@@ -120,7 +112,7 @@ export default function VerificationPage() {
 
         const ext = licenseFile.name.split(".").pop() || "jpg";
         const path = `${user.id}/license_${Date.now()}.${ext}`;
-
+        
         const { error: uploadError } = await supabase.storage
           .from("licenses")
           .upload(path, licenseFile, { upsert: true });
@@ -129,9 +121,7 @@ export default function VerificationPage() {
           throw new Error(`Storage upload failure: ${uploadError.message}`);
         }
 
-        const { data: publicUrl } = supabase.storage
-          .from("licenses")
-          .getPublicUrl(path);
+        const { data: publicUrl } = supabase.storage.from("licenses").getPublicUrl(path);
         licensePhotoUrl = publicUrl.publicUrl;
       }
 
@@ -180,9 +170,7 @@ export default function VerificationPage() {
   }
 
   // Security Lockout Guard: Protect both pending and verified production pipelines
-  const isLocked =
-    profile?.verification_status === "pending" ||
-    profile?.verification_status === "verified";
+  const isLocked = profile?.verification_status === "pending" || profile?.verification_status === "verified";
 
   return (
     <div className="px-4 pt-5 pb-10 max-w-md mx-auto">
@@ -190,33 +178,25 @@ export default function VerificationPage() {
         Identity verification
       </h1>
       <p className="mt-1 text-sm text-night-800/50 leading-relaxed">
-        Verified accounts are trusted more by hosts and drivers within the
-        ecosystem.
+        Verified accounts are trusted more by hosts and drivers within the ecosystem.
       </p>
 
       {profile && (
-        <StatusCard
-          status={profile.verification_status}
-          notes={profile.verification_notes}
-        />
+        <StatusCard status={profile.verification_status} notes={profile.verification_notes} />
       )}
 
       {isLocked ? (
         <div className="mt-6 rounded-xl2 bg-white border border-gray-100 p-4.5 text-sm text-night-800/70 shadow-card leading-relaxed">
           {profile?.verification_status === "pending" ? (
             <p>
-              Your identity details are currently being reviewed by our
-              compliance team. We will alert you via notifications as soon as
-              verification completes.
+              Your identity details are currently being reviewed by our compliance team. 
+              We will alert you via notifications as soon as verification completes.
             </p>
           ) : (
             <div className="space-y-2">
-              <p className="font-bold text-signal-green">
-                Your account is fully authorized.
-              </p>
+              <p className="font-bold text-signal-green">Your account is fully authorized.</p>
               <p className="text-xs text-night-800/40">
-                To update your verified legal identity details, please contact
-                corporate support.
+                To update your verified legal identity details, please contact corporate support.
               </p>
             </div>
           )}
@@ -259,13 +239,9 @@ export default function VerificationPage() {
             />
           </Field>
 
-          <Field
-            id="verif-file"
-            label={
-              profile?.license_photo_url
-                ? "Replace license asset document"
-                : "License document photo"
-            }
+          <Field 
+            id="verif-file" 
+            label={profile?.license_photo_url ? "Replace license asset document" : "License document photo"}
           >
             <div className="mt-1 flex flex-col gap-2">
               <input
@@ -277,10 +253,8 @@ export default function VerificationPage() {
                 onChange={(e) => setLicenseFile(e.target.files?.[0] ?? null)}
                 className="w-full text-xs text-night-800/60 file:mr-3 file:rounded-xl file:border-0 file:bg-night-800 file:px-4 file:py-2.5 file:text-xs file:font-semibold file:text-white file:hover:bg-night-900 file:transition file:cursor-pointer disabled:opacity-50"
               />
-              <p className="text-[10px] text-night-800/40">
-                Supported formats: JPEG, PNG. Max size: 5MB.
-              </p>
-
+              <p className="text-[10px] text-night-800/40">Supported formats: JPEG, PNG. Max size: 5MB.</p>
+              
               {profile?.license_photo_url && !licenseFile && (
                 <a
                   href={profile.license_photo_url}
@@ -295,16 +269,8 @@ export default function VerificationPage() {
             </div>
           </Field>
 
-          {error && (
-            <p className="text-xs font-semibold text-signal-red animate-shake">
-              {error}
-            </p>
-          )}
-          {success && (
-            <p className="text-xs font-bold text-signal-green">
-              Profile updated successfully!
-            </p>
-          )}
+          {error && <p className="text-xs font-semibold text-signal-red animate-shake">{error}</p>}
+          {success && <p className="text-xs font-bold text-signal-green">Profile updated successfully!</p>}
 
           <button
             type="submit"
@@ -326,21 +292,10 @@ export default function VerificationPage() {
   );
 }
 
-function Field({
-  id,
-  label,
-  children,
-}: {
-  id: string;
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label
-        htmlFor={id}
-        className="mb-1 block text-xs font-semibold text-night-800/70"
-      >
+      <label htmlFor={id} className="mb-1 block text-xs font-semibold text-night-800/70">
         {label}
       </label>
       {children}
@@ -348,17 +303,8 @@ function Field({
   );
 }
 
-function StatusCard({
-  status,
-  notes,
-}: {
-  status: string;
-  notes: string | null;
-}) {
-  const config: Record<
-    string,
-    { icon: React.ReactNode; text: string; bg: string; border: string }
-  > = {
+function StatusCard({ status, notes }: { status: string; notes: string | null }) {
+  const config: Record<string, { icon: React.ReactNode; text: string; bg: string; border: string }> = {
     unverified: {
       icon: <ShieldQuestion className="h-5 w-5 text-night-800/50" />,
       text: "Identity documentation verification required.",
@@ -379,24 +325,18 @@ function StatusCard({
     },
     rejected: {
       icon: <ShieldAlert className="h-5 w-5 text-signal-red" />,
-      text: notes
-        ? `Rejected: ${notes}`
-        : "Identity request declined. Please verify inputs.",
+      text: notes ? `Rejected: ${notes}` : "Identity request declined. Please verify inputs.",
       bg: "bg-signal-red/5",
       border: "border-signal-red/10",
     },
   };
-
+  
   const c = config[status] ?? config.unverified;
 
   return (
-    <div
-      className={`mt-4 flex items-start gap-3 rounded-xl2 border p-4 shadow-card transition-all ${c.bg} ${c.border}`}
-    >
+    <div className={`mt-4 flex items-start gap-3 rounded-xl2 border p-4 shadow-card transition-all ${c.bg} ${c.border}`}>
       <div className="mt-0.5 shrink-0">{c.icon}</div>
-      <p className="text-sm font-medium text-night-900 leading-normal">
-        {c.text}
-      </p>
+      <p className="text-sm font-medium text-night-900 leading-normal">{c.text}</p>
     </div>
   );
 }
