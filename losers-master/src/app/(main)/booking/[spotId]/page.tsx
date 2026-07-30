@@ -35,70 +35,86 @@ export default function BookingPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<string>("");
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // 1. New State to manage button hiding & directions showing
   const [isReserved, setIsReserved] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function load() {
-      const { data: spotData } = await supabase
-        .from("parking_spots")
-        .select("*")
-        .eq("id", spotId)
-        .single();
-      if (spotData) {
-        setSpot(spotData as ParkingSpot);
-        const { data: hostData } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", (spotData as ParkingSpot).host_id)
-          .single();
-        setHost(hostData as Profile);
-      }
+      try {
+        // Step 1: Parallel fetch for the spot details and initial auth verification
+        const [spotResult, userResult] = await Promise.all([
+          supabase.from("parking_spots").select("*").eq("id", spotId).single(),
+          supabase.auth.getUser(),
+        ]);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const { data: v } = await supabase
-          .from("vehicles")
-          .select("*")
-          .eq("owner_id", user.id);
-        setVehicles((v as Vehicle[]) ?? []);
-        if (v && v.length) setSelectedVehicle(v[0].id);
+        if (!isMounted) return;
 
-        const { data: me } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
-        setDriverProfile(me as Profile);
-      }
+        const spotData = spotResult.data as ParkingSpot | null;
+        const user = userResult.data?.user;
 
-      if (navigator.geolocation && spotData) {
-        navigator.geolocation.getCurrentPosition((p) => {
-          setDistanceKm(
-            haversineKm(
-              { lat: p.coords.latitude, lng: p.coords.longitude },
-              {
-                lat: (spotData as ParkingSpot).latitude,
-                lng: (spotData as ParkingSpot).longitude,
+        if (spotData) {
+          setSpot(spotData);
+
+          // Step 2: Parallel fetch for remaining independent details based on initial results
+          const promises: Promise<any>[] = [
+            supabase.from("profiles").select("*").eq("id", spotData.host_id).single()
+          ];
+
+          if (user) {
+            promises.push(supabase.from("vehicles").select("*").eq("owner_id", user.id));
+            promises.push(supabase.from("profiles").select("*").eq("id", user.id).single());
+          }
+
+          const [hostResult, vehiclesResult, profileResult] = await Promise.all(promises);
+
+          if (!isMounted) return;
+
+          if (hostResult?.data) setHost(hostResult.data as Profile);
+          
+          if (vehiclesResult?.data) {
+            const vList = vehiclesResult.data as Vehicle[];
+            setVehicles(vList);
+            if (vList.length > 0) setSelectedVehicle(vList[0].id);
+          }
+          
+          if (profileResult?.data) setDriverProfile(profileResult.data as Profile);
+
+          // Step 3: Non-blocking Geolocation retrieval with error handling
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (p) => {
+                if (!isMounted) return;
+                setDistanceKm(
+                  haversineKm(
+                    { lat: p.coords.latitude, lng: p.coords.longitude },
+                    { lat: spotData.latitude, lng: spotData.longitude }
+                  )
+                );
               },
-            ),
-          );
-        });
+              (geoError) => {
+                console.warn("Geolocation permission denied or failed:", geoError.message);
+              },
+              { timeout: 8000 }
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Error loading setup data:", err);
+        toast.error("Failed to load layout details.");
       }
     }
+
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => {
+      isMounted = false;
+    };
   }, [spotId]);
 
-  // 2. Production Ready Logic tied to State mutations
   async function handleReserve() {
     setLoading(true);
-    setError(null);
 
     const {
       data: { user },
@@ -116,6 +132,11 @@ export default function BookingPage() {
     }
     if (spot.available_slots <= 0) {
       toast.error("This spot is currently full.");
+      setLoading(false);
+      return;
+    }
+    if (vehicles.length === 0) {
+      toast.error("Please add a vehicle to your profile before booking.");
       setLoading(false);
       return;
     }
@@ -138,12 +159,8 @@ export default function BookingPage() {
       return;
     }
 
-    // Success Block
     toast.success("Reservation Successful!");
     setIsReserved(true);
-
-    // Optional: If you still need a router redirect, you can add an artificial timeout here
-    // setTimeout(() => router.push(`/session/${booking.id}`), 2000);
   }
 
   if (!spot) {
@@ -232,17 +249,18 @@ export default function BookingPage() {
       </div>
 
       <div className="mt-4 rounded-xl2 bg-white p-4 shadow-card">
-        <p className="mb-2 text-sm font-medium text-night-900">
+        <label htmlFor="vehicle-select" className="mb-2 block text-sm font-medium text-night-900">
           Choose your vehicle
-        </p>
+        </label>
         {vehicles.length === 0 ? (
           <p className="text-sm text-night-800/50">
             No vehicles yet — add one from your Profile page first.
           </p>
         ) : (
           <select
+            id="vehicle-select"
             value={selectedVehicle}
-            disabled={isReserved} // Disable choice after booking
+            disabled={isReserved}
             onChange={(e) => setSelectedVehicle(e.target.value)}
             className="w-full rounded-xl border border-night-900/10 bg-white px-4 py-3 disabled:opacity-60"
           >
@@ -255,18 +273,19 @@ export default function BookingPage() {
         )}
 
         <div className="mt-5">
-          {/* 3. Conditional Mutex: Button disappears and Directions Button mounts */}
           {!isReserved ? (
             <button
               onClick={handleReserve}
-              disabled={loading || spot.available_slots <= 0 || !isVerified}
+              disabled={loading || spot.available_slots <= 0 || !isVerified || vehicles.length === 0}
               className="w-full rounded-xl bg-signal-amber py-3 font-semibold text-night-900 disabled:opacity-50"
             >
               {loading
                 ? "Reserving…"
                 : !isVerified
                   ? "Verify to reserve"
-                  : "Reserve"}
+                  : vehicles.length === 0
+                    ? "Add a vehicle to reserve"
+                    : "Reserve"}
             </button>
           ) : (
             <DirectionsButton
@@ -281,7 +300,6 @@ export default function BookingPage() {
   );
 }
 
-// Local mock Badge definition helper to resolve component errors if missing
 function Badge({ children }: { children: React.ReactNode }) {
   return (
     <span className="inline-flex items-center rounded-md bg-night-900/5 px-2 py-1 text-xs font-medium text-night-800/60 ring-1 ring-inset ring-night-900/10">

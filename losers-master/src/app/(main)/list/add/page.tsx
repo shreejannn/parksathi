@@ -6,10 +6,15 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import clsx from "clsx";
 import type { ParkingMode } from "@/types";
-import { ParkingCircle } from "lucide-react";
+import toast from "react-hot-toast";
 
 const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
   ssr: false,
+  loading: () => (
+    <div className="w-full h-48 rounded-xl bg-gray-100 flex items-center justify-center text-xs text-night-800/40 animate-pulse">
+      Loading interactive map configuration…
+    </div>
+  ),
 });
 
 export default function AddSpotPage() {
@@ -32,39 +37,53 @@ export default function AddSpotPage() {
     setLoading(true);
     setError(null);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) {
-      setError("You must be logged in.");
+      if (!user) {
+        const msg = "You must be logged in to list a parking spot.";
+        setError(msg);
+        toast.error(msg);
+        setLoading(false);
+        return;
+      }
+
+      // Step 1: Create the new parking spot record
+      const { error: insertError } = await supabase.from("parking_spots").insert({
+        host_id: user.id,
+        title,
+        description,
+        address,
+        mode,
+        price_per_hour: mode === "commercial" ? pricePerHour : 0,
+        credit_per_hour: mode === "credit" ? creditPerHour : 0,
+        latitude: loc.lat,
+        longitude: loc.lng,
+        total_slots: totalSlots,
+        available_slots: totalSlots,
+      });
+
+      if (insertError) throw insertError;
+
+      // Step 2: Elevate profile privileges to host status safely
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ is_host: true })
+        .eq("id", user.id);
+
+      if (profileError) throw profileError;
+
+      toast.success("Parking spot published successfully!");
+      router.push("/list");
+    } catch (err: any) {
+      console.error("Failed to register listing profiles:", err);
+      const errMsg = err?.message ?? "An unexpected setup error occurred.";
+      setError(errMsg);
+      toast.error(errMsg);
       setLoading(false);
-      return;
     }
-
-    const { error: insertError } = await supabase.from("parking_spots").insert({
-      host_id: user.id,
-      title,
-      description,
-      address,
-      mode,
-      price_per_hour: mode === "commercial" ? pricePerHour : 0,
-      credit_per_hour: mode === "credit" ? creditPerHour : 0,
-      latitude: loc.lat,
-      longitude: loc.lng,
-      total_slots: totalSlots,
-      available_slots: totalSlots,
-    });
-
-    if (insertError) {
-      setError(insertError.message);
-      setLoading(false);
-      return;
-    }
-
-    await supabase.from("profiles").update({ is_host: true }).eq("id", user.id);
-
-    router.push("/list");
   }
 
   return (
@@ -75,58 +94,63 @@ export default function AddSpotPage() {
 
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
         <div>
-          <label className="mb-1 block text-xs font-medium text-night-800/60">
+          <label htmlFor="spot-title" className="mb-1 block text-xs font-medium text-night-800/60">
             Spot name
           </label>
           <input
+            id="spot-title"
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Driveway near Baneshwor chowk"
-            className="w-full rounded-xl border border-night-900/10 bg-white px-4 py-3"
+            className="w-full rounded-xl border border-night-900/10 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-night-800/10"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-night-800/60">
+          <label htmlFor="spot-address" className="mb-1 block text-xs font-medium text-night-800/60">
             Address
           </label>
           <input
+            id="spot-address"
             required
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            className="w-full rounded-xl border border-night-900/10 bg-white px-4 py-3"
+            placeholder="e.g. Kathmandu, Nepal"
+            className="w-full rounded-xl border border-night-900/10 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-night-800/10"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-night-800/60">
+          <label htmlFor="spot-description" className="mb-1 block text-xs font-medium text-night-800/60">
             Description (optional)
           </label>
           <textarea
+            id="spot-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
-            className="w-full rounded-xl border border-night-900/10 bg-white px-4 py-3"
+            placeholder="Provide custom instructions, gate rules, or landmarks..."
+            className="w-full rounded-xl border border-night-900/10 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-night-800/10"
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-xs font-medium text-night-800/60">
+          <span className="mb-2 block text-xs font-medium text-night-800/60">
             Pin the exact location (tap the map)
-          </label>
+          </span>
           <LocationPicker value={loc} onChange={setLoc} />
         </div>
 
         <div>
-          <label className="mb-2 block text-xs font-medium text-night-800/60">
+          <span className="mb-2 block text-xs font-medium text-night-800/60">
             Parking mode
-          </label>
+          </span>
           <div className="flex gap-2">
             <ModeButton
               active={mode === "credit"}
               onClick={() => setMode("credit")}
-              label=" Credit (community)"
+              label="Credit (community)"
             />
 
             <ModeButton
@@ -139,6 +163,7 @@ export default function AddSpotPage() {
 
         {mode === "credit" ? (
           <NumberField
+            id="spot-credits"
             label="Credits charged per hour"
             value={creditPerHour}
             onChange={setCreditPerHour}
@@ -146,6 +171,7 @@ export default function AddSpotPage() {
           />
         ) : (
           <NumberField
+            id="spot-price"
             label="Price per hour (Rs.)"
             value={pricePerHour}
             onChange={setPricePerHour}
@@ -154,22 +180,23 @@ export default function AddSpotPage() {
         )}
 
         <NumberField
+          id="spot-slots"
           label="Total slots available"
           value={totalSlots}
           onChange={setTotalSlots}
           min={1}
         />
 
-        {error && <p className="text-sm text-signal-red">{error}</p>}
+        {error && <p className="text-sm font-medium text-signal-red">{error}</p>}
 
-        <p className="text-xs text-night-800/40">
+        <p className="text-xs text-night-800/40 leading-relaxed">
           New spots go live once our team verifies them — usually within a day.
         </p>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-xl bg-night-800 py-3 font-semibold text-white disabled:opacity-60"
+          className="w-full rounded-xl bg-night-800 py-3 font-semibold text-white transition hover:bg-night-900 disabled:opacity-60 active:scale-[0.99]"
         >
           {loading ? "Publishing…" : "Publish spot"}
         </button>
@@ -192,10 +219,10 @@ function ModeButton({
       type="button"
       onClick={onClick}
       className={clsx(
-        "flex-1 rounded-xl border px-3 py-3 text-sm font-medium",
+        "flex-1 rounded-xl border px-3 py-3 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-night-800/20",
         active
           ? "border-night-800 bg-night-800 text-white"
-          : "border-night-900/10 bg-white text-night-800/60",
+          : "border-night-900/10 bg-white text-night-800/60 hover:bg-gray-50",
       )}
     >
       {label}
@@ -204,11 +231,13 @@ function ModeButton({
 }
 
 function NumberField({
+  id,
   label,
   value,
   onChange,
   min,
 }: {
+  id: string;
   label: string;
   value: number;
   onChange: (v: number) => void;
@@ -216,16 +245,21 @@ function NumberField({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-night-800/60">
+      <label htmlFor={id} className="mb-1 block text-xs font-medium text-night-800/60">
         {label}
       </label>
       <input
+        id={id}
         type="number"
         min={min}
         required
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded-xl border border-night-900/10 bg-white px-4 py-3"
+        value={value === 0 && min > 0 ? "" : value}
+        onChange={(e) => {
+          const rawValue = e.target.value;
+          // Gracefully default to the minimum parameter if value cleared entirely
+          onChange(rawValue === "" ? min : Math.max(min, Number(rawValue)));
+        }}
+        className="w-full rounded-xl border border-night-900/10 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-night-800/10"
       />
     </div>
   );
